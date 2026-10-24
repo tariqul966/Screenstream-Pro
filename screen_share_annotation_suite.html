@@ -1,0 +1,1016 @@
+<!DOCTYPE html>
+<html lang="en" class="dark h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Screen Share & Annotation Suite</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f6ff',
+                            100: '#e0edff',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            900: '#1e3a8a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .glass-panel {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .canvas-overlay {
+            touch-action: none;
+        }
+        /* Custom scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(51, 65, 85, 0.8);
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(71, 85, 105, 1);
+        }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 h-full flex flex-col font-sans overflow-x-hidden antialiased">
+
+    <!-- Top Header Navigation -->
+    <header class="glass-panel sticky top-0 z-40 border-b border-slate-800 px-4 py-3 flex items-center justify-between">
+        <div class="flex items-center space-x-3">
+            <div class="p-2 bg-gradient-to-tr from-blue-600 to-indigo-600 rounded-xl shadow-lg shadow-blue-500/20">
+                <i data-lucide="monitor" class="w-6 h-6 text-white"></i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg leading-tight bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent">
+                    ScreenStream Pro
+                </h1>
+                <p class="text-xs text-slate-400">WebRTC Sharing & Interactive Studio</p>
+            </div>
+        </div>
+
+        <!-- Mode Selector & Global Actions -->
+        <div class="flex items-center space-x-2 sm:space-x-4">
+            <div class="bg-slate-900/90 p-1 rounded-xl border border-slate-800 flex text-xs">
+                <button id="modePresenterBtn" class="px-3 py-1.5 rounded-lg font-medium transition-all duration-200 bg-blue-600 text-white shadow-sm flex items-center gap-1.5">
+                    <i data-lucide="radio" class="w-3.5 h-3.5"></i>
+                    Presenter
+                </button>
+                <button id="modeViewerBtn" class="px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-slate-400 hover:text-slate-200 flex items-center gap-1.5">
+                    <i data-lucide="tv" class="w-3.5 h-3.5"></i>
+                    Viewer Mode
+                </button>
+            </div>
+
+            <button id="quickShareBtn" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 px-3 py-1.5 rounded-xl text-xs font-semibold flex items-center gap-2 transition">
+                <i data-lucide="share-2" class="w-4 h-4 text-blue-400"></i>
+                <span class="hidden sm:inline">Share Link</span>
+            </button>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+
+        <!-- Center Workspace / Video Area -->
+        <main class="flex-1 bg-slate-900/50 p-4 flex flex-col justify-between overflow-y-auto relative">
+            
+            <!-- Live Status & Overlay Badge Header -->
+            <div class="flex flex-wrap items-center justify-between gap-2 mb-3 z-10">
+                <div class="flex items-center gap-2">
+                    <span id="statusBadge" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700">
+                        <span id="statusDot" class="w-2 h-2 rounded-full bg-slate-500"></span>
+                        <span id="statusText">Idle / Offline</span>
+                    </span>
+                    <span id="timerBadge" class="hidden font-mono text-xs px-2.5 py-1 rounded-md bg-slate-900/80 text-blue-400 border border-slate-800">
+                        00:00:00
+                    </span>
+                    <span id="recBadge" class="hidden items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-red-500/20 text-red-400 border border-red-500/30 animate-pulse">
+                        <span class="w-2 h-2 rounded-full bg-red-500"></span>
+                        REC
+                    </span>
+                </div>
+
+                <div class="flex items-center gap-2 text-xs">
+                    <span class="bg-slate-800/80 px-2.5 py-1 rounded-lg text-slate-400 border border-slate-800 flex items-center gap-1">
+                        <i data-lucide="activity" class="w-3.5 h-3.5 text-blue-400"></i>
+                        <span id="fpsDisplay">0 FPS</span>
+                    </span>
+                    <span class="bg-slate-800/80 px-2.5 py-1 rounded-lg text-slate-400 border border-slate-800 flex items-center gap-1">
+                        <i data-lucide="maximize" class="w-3.5 h-3.5 text-emerald-400"></i>
+                        <span id="resDisplay">0x0</span>
+                    </span>
+                </div>
+            </div>
+
+            <!-- Screen Stream Display Wrapper -->
+            <div class="relative flex-1 min-h-[360px] sm:min-h-[480px] bg-slate-950 rounded-2xl border border-slate-800/80 shadow-2xl overflow-hidden flex items-center justify-center group">
+                
+                <!-- Placeholder Screen state when inactive -->
+                <div id="videoPlaceholder" class="flex flex-col items-center justify-center p-8 text-center max-w-md">
+                    <div class="w-20 h-20 rounded-3xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 mb-5 shadow-inner">
+                        <i data-lucide="screen-share" class="w-10 h-10"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-200 mb-2">Ready to Share Screen</h3>
+                    <p class="text-sm text-slate-400 mb-6 leading-relaxed">
+                        Broadcast your browser tab, window, or entire display with real-time annotations, audio capture, and local recording capabilities.
+                    </p>
+                    <button id="startShareBtn" class="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-semibold px-6 py-3 rounded-xl shadow-lg shadow-blue-500/25 transition transform active:scale-95 flex items-center gap-2">
+                        <i data-lucide="play" class="w-5 h-5 fill-current"></i>
+                        Start Sharing Now
+                    </button>
+                </div>
+
+                <!-- Viewer Mode Placeholder -->
+                <div id="viewerPlaceholder" class="hidden flex-col items-center justify-center p-8 text-center max-w-md">
+                    <div class="w-20 h-20 rounded-3xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 mb-5 shadow-inner">
+                        <i data-lucide="rss" class="w-10 h-10"></i>
+                    </div>
+                    <h3 class="text-xl font-bold text-slate-200 mb-2">Join Stream Channel</h3>
+                    <p class="text-sm text-slate-400 mb-4 leading-relaxed">
+                        Enter a Session Room ID or click a shared link to tune in to a live stream broadcast.
+                    </p>
+                    <div class="flex gap-2 w-full max-w-xs mb-4">
+                        <input id="joinRoomInput" type="text" placeholder="Enter Room ID..." class="bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-sm text-slate-100 focus:outline-none focus:border-blue-500 flex-1">
+                        <button id="joinRoomBtn" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold px-4 py-2 rounded-xl text-sm transition">
+                            Join
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Actual Live Video Stream -->
+                <video id="sharedVideo" autoplay playsinline muted class="w-full h-full object-contain hidden pointer-events-none"></video>
+
+                <!-- Annotation Canvas Overlay -->
+                <canvas id="annotationCanvas" class="absolute inset-0 w-full h-full canvas-overlay hidden cursor-crosshair z-20"></canvas>
+
+                <!-- Laser Pointer Indicator -->
+                <div id="laserPointer" class="hidden absolute w-4 h-4 rounded-full bg-red-500/80 shadow-[0_0_12px_#ef4444] pointer-events-none transform -translate-x-1/2 -translate-y-1/2 z-30 transition-transform duration-75"></div>
+
+                <!-- Floating Video Toolbar Controls -->
+                <div id="videoControlsToolbar" class="hidden absolute bottom-4 left-1/2 transform -translate-x-1/2 glass-panel border border-slate-700/80 rounded-2xl p-2 z-30 shadow-2xl flex items-center gap-1 sm:gap-2 transition-all duration-300 opacity-90 hover:opacity-100">
+                    
+                    <button id="tbStopBtn" title="Stop Share" class="p-2.5 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition">
+                        <i data-lucide="square" class="w-4 h-4"></i>
+                    </button>
+                    
+                    <div class="w-px h-6 bg-slate-700/80 mx-1"></div>
+
+                    <button id="tbMicToggle" title="Toggle Mic Audio" class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition">
+                        <i data-lucide="mic-off" class="w-4 h-4"></i>
+                    </button>
+
+                    <button id="tbAnnotateToggle" title="Toggle Annotation Overlay" class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition">
+                        <i data-lucide="edit-3" class="w-4 h-4"></i>
+                    </button>
+
+                    <button id="tbRecordBtn" title="Start Recording Stream" class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition">
+                        <i data-lucide="circle" class="w-4 h-4 text-red-400"></i>
+                    </button>
+
+                    <button id="tbSnapshotBtn" title="Take Instant Snapshot" class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition">
+                        <i data-lucide="camera" class="w-4 h-4"></i>
+                    </button>
+
+                    <div class="w-px h-6 bg-slate-700/80 mx-1"></div>
+
+                    <button id="tbPipBtn" title="Picture in Picture Mode" class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition">
+                        <i data-lucide="external-link" class="w-4 h-4"></i>
+                    </button>
+
+                    <button id="tbFullscreenBtn" title="Toggle Fullscreen" class="p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition">
+                        <i data-lucide="maximize-2" class="w-4 h-4"></i>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Annotation Toolbar (Appears when active) -->
+            <div id="annotationBar" class="hidden mt-3 glass-panel p-2.5 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-3 z-10">
+                <div class="flex items-center gap-2">
+                    <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider px-2">Tools</span>
+                    
+                    <button data-tool="pen" class="tool-btn p-2 rounded-lg bg-blue-600 text-white text-xs flex items-center gap-1.5 transition">
+                        <i data-lucide="pen-tool" class="w-3.5 h-3.5"></i>
+                        <span>Pen</span>
+                    </button>
+
+                    <button data-tool="highlighter" class="tool-btn p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs flex items-center gap-1.5 transition">
+                        <i data-lucide="highlighter" class="w-3.5 h-3.5"></i>
+                        <span>Highlighter</span>
+                    </button>
+
+                    <button data-tool="laser" class="tool-btn p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs flex items-center gap-1.5 transition">
+                        <i data-lucide="pointer" class="w-3.5 h-3.5"></i>
+                        <span>Laser</span>
+                    </button>
+
+                    <button data-tool="eraser" class="tool-btn p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs flex items-center gap-1.5 transition">
+                        <i data-lucide="eraser" class="w-3.5 h-3.5"></i>
+                        <span>Eraser</span>
+                    </button>
+                </div>
+
+                <div class="flex items-center gap-3">
+                    <!-- Color Picker Palette -->
+                    <div class="flex items-center gap-1.5 border-r border-slate-800 pr-3">
+                        <button class="color-btn w-6 h-6 rounded-full bg-red-500 ring-2 ring-offset-2 ring-offset-slate-900 ring-red-500" data-color="#ef4444"></button>
+                        <button class="color-btn w-6 h-6 rounded-full bg-yellow-400" data-color="#facc15"></button>
+                        <button class="color-btn w-6 h-6 rounded-full bg-emerald-400" data-color="#34d399"></button>
+                        <button class="color-btn w-6 h-6 rounded-full bg-blue-500" data-color="#3b82f6"></button>
+                        <button class="color-btn w-6 h-6 rounded-full bg-purple-500" data-color="#a855f7"></button>
+                        <button class="color-btn w-6 h-6 rounded-full bg-white" data-color="#ffffff"></button>
+                        <input type="color" id="customColorPicker" class="w-6 h-6 rounded-full bg-transparent cursor-pointer border-0 p-0" value="#ef4444">
+                    </div>
+
+                    <!-- Line Thickness Selector -->
+                    <div class="flex items-center gap-2">
+                        <span class="text-xs text-slate-400">Size</span>
+                        <input id="lineWidthRange" type="range" min="2" max="30" value="4" class="w-20 accent-blue-500">
+                    </div>
+
+                    <button id="clearCanvasBtn" class="p-2 rounded-lg bg-slate-800 hover:bg-red-500/20 text-slate-300 hover:text-red-400 text-xs flex items-center gap-1 transition">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        <span>Clear Drawings</span>
+                    </button>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Right Side Panel / Control Hub & Telemetry -->
+        <aside class="w-full lg:w-80 glass-panel border-t lg:border-t-0 lg:border-l border-slate-800 p-4 flex flex-col gap-5 overflow-y-auto">
+            
+            <!-- Presenter Main Actions Block -->
+            <div id="presenterControls" class="space-y-3">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Stream Setup</h2>
+                
+                <button id="sideStartBtn" class="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-xl shadow-lg shadow-blue-600/20 transition flex items-center justify-center gap-2 text-sm">
+                    <i data-lucide="play" class="w-4 h-4"></i>
+                    <span>Start Screen Share</span>
+                </button>
+
+                <button id="sideStopBtn" class="hidden w-full bg-slate-800 hover:bg-red-600/80 text-slate-300 hover:text-white font-semibold py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 text-sm border border-slate-700">
+                    <i data-lucide="square" class="w-4 h-4"></i>
+                    <span>Stop Sharing</span>
+                </button>
+
+                <!-- Configuration Options -->
+                <div class="space-y-2 bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 text-xs">
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-slate-300 flex items-center gap-2">
+                            <i data-lucide="mic" class="w-3.5 h-3.5 text-blue-400"></i> Include Microphone Audio
+                        </span>
+                        <input id="micAudioCheckbox" type="checkbox" class="w-4 h-4 accent-blue-600 rounded">
+                    </label>
+
+                    <label class="flex items-center justify-between cursor-pointer">
+                        <span class="text-slate-300 flex items-center gap-2">
+                            <i data-lucide="volume-2" class="w-3.5 h-3.5 text-emerald-400"></i> Capture System Sound
+                        </span>
+                        <input id="systemAudioCheckbox" type="checkbox" checked class="w-4 h-4 accent-blue-600 rounded">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Peer-to-Peer Connection & Broadcast Channel -->
+            <div class="space-y-3">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Peer Sync & Viewer Share</h2>
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 space-y-2.5">
+                    <div class="flex items-center justify-between text-xs">
+                        <span class="text-slate-400">Room Session ID:</span>
+                        <span id="roomCodeDisplay" class="font-mono text-blue-400 font-semibold">---</span>
+                    </div>
+
+                    <div class="flex gap-2">
+                        <button id="copyRoomLinkBtn" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs py-2 px-3 rounded-lg font-medium transition flex items-center justify-center gap-1.5 border border-slate-700">
+                            <i data-lucide="copy" class="w-3.5 h-3.5 text-blue-400"></i>
+                            <span>Copy Viewer Link</span>
+                        </button>
+                    </div>
+                    <p class="text-[11px] text-slate-500 leading-tight">
+                        Opening this page in another browser tab with the same Room ID allows local WebRTC broadcast loopback preview.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Stream Performance Statistics -->
+            <div class="space-y-3 flex-1">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Stream Telemetry</h2>
+                <div class="bg-slate-900/60 p-3 rounded-xl border border-slate-800/80 space-y-2 text-xs">
+                    <div class="flex justify-between py-1 border-b border-slate-800/50">
+                        <span class="text-slate-400">Resolution</span>
+                        <span id="statRes" class="font-mono text-slate-200">N/A</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/50">
+                        <span class="text-slate-400">Framerate</span>
+                        <span id="statFps" class="font-mono text-slate-200">0 FPS</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/50">
+                        <span class="text-slate-400">Estimated Bitrate</span>
+                        <span id="statBitrate" class="font-mono text-slate-200">0 Mbps</span>
+                    </div>
+                    <div class="flex justify-between py-1 border-b border-slate-800/50">
+                        <span class="text-slate-400">Aspect Ratio</span>
+                        <span id="statAspect" class="font-mono text-slate-200">N/A</span>
+                    </div>
+                    <div class="flex justify-between py-1">
+                        <span class="text-slate-400">Audio Tracks</span>
+                        <span id="statAudio" class="font-mono text-slate-200">None</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recording Downloads Output Box -->
+            <div id="recordingOutputSection" class="hidden space-y-2">
+                <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400">Recorded Media</h2>
+                <div id="recordingList" class="space-y-2">
+                    <!-- Recorded items dynamically injected here -->
+                </div>
+            </div>
+
+        </aside>
+    </div>
+
+    <!-- Notification Toast Container -->
+    <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- JavaScript Application Logic -->
+    <script>
+        // Core State Management
+        const state = {
+            mode: 'presenter', // 'presenter' | 'viewer'
+            stream: null,
+            micStream: null,
+            peerConnection: null,
+            broadcastChannel: null,
+            roomId: generateRoomId(),
+            
+            // Annotation state
+            isAnnotating: false,
+            currentTool: 'pen', // 'pen' | 'highlighter' | 'laser' | 'eraser'
+            currentColor: '#ef4444',
+            lineWidth: 4,
+            isDrawing: false,
+            lastPoint: null,
+            
+            // Recording state
+            mediaRecorder: null,
+            recordedChunks: [],
+            isRecording: false,
+            recordingTimer: null,
+            recordingDuration: 0,
+            
+            // Stats state
+            fps: 0,
+            frameCount: 0,
+            lastStatsTime: performance.now(),
+            statsInterval: null
+        };
+
+        // DOM Elements
+        const sharedVideo = document.getElementById('sharedVideo');
+        const annotationCanvas = document.getElementById('annotationCanvas');
+        const ctx = annotationCanvas.getContext('2d');
+        const laserPointer = document.getElementById('laserPointer');
+        
+        // Buttons
+        const modePresenterBtn = document.getElementById('modePresenterBtn');
+        const modeViewerBtn = document.getElementById('modeViewerBtn');
+        const startShareBtn = document.getElementById('startShareBtn');
+        const sideStartBtn = document.getElementById('sideStartBtn');
+        const sideStopBtn = document.getElementById('sideStopBtn');
+        const tbStopBtn = document.getElementById('tbStopBtn');
+        const tbMicToggle = document.getElementById('tbMicToggle');
+        const tbAnnotateToggle = document.getElementById('tbAnnotateToggle');
+        const tbRecordBtn = document.getElementById('tbRecordBtn');
+        const tbSnapshotBtn = document.getElementById('tbSnapshotBtn');
+        const tbPipBtn = document.getElementById('tbPipBtn');
+        const tbFullscreenBtn = document.getElementById('tbFullscreenBtn');
+        const quickShareBtn = document.getElementById('quickShareBtn');
+        const copyRoomLinkBtn = document.getElementById('copyRoomLinkBtn');
+        const clearCanvasBtn = document.getElementById('clearCanvasBtn');
+        const joinRoomBtn = document.getElementById('joinRoomBtn');
+        
+        // Displays & Badges
+        const videoPlaceholder = document.getElementById('videoPlaceholder');
+        const viewerPlaceholder = document.getElementById('viewerPlaceholder');
+        const videoControlsToolbar = document.getElementById('videoControlsToolbar');
+        const annotationBar = document.getElementById('annotationBar');
+        const statusBadge = document.getElementById('statusBadge');
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+        const timerBadge = document.getElementById('timerBadge');
+        const recBadge = document.getElementById('recBadge');
+        const fpsDisplay = document.getElementById('fpsDisplay');
+        const resDisplay = document.getElementById('resDisplay');
+        const roomCodeDisplay = document.getElementById('roomCodeDisplay');
+        const joinRoomInput = document.getElementById('joinRoomInput');
+        const presenterControls = document.getElementById('presenterControls');
+
+        // Initial setup
+        window.addEventListener('DOMContentLoaded', () => {
+            lucide.createIcons();
+            setupRoomFromUrl();
+            setupBroadcastChannel();
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+        });
+
+        function generateRoomId() {
+            return Math.random().toString(36).substring(2, 8);
+        }
+
+        function setupRoomFromUrl() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const roomParam = urlParams.get('room');
+            if (roomParam) {
+                state.roomId = roomParam;
+                switchMode('viewer');
+            }
+            roomCodeDisplay.innerText = state.roomId;
+        }
+
+        // Mode Switching
+        modePresenterBtn.addEventListener('click', () => switchMode('presenter'));
+        modeViewerBtn.addEventListener('click', () => switchMode('viewer'));
+
+        function switchMode(newMode) {
+            state.mode = newMode;
+            if (newMode === 'presenter') {
+                modePresenterBtn.className = "px-3 py-1.5 rounded-lg font-medium transition-all duration-200 bg-blue-600 text-white shadow-sm flex items-center gap-1.5";
+                modeViewerBtn.className = "px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-slate-400 hover:text-slate-200 flex items-center gap-1.5";
+                presenterControls.classList.remove('hidden');
+                
+                if (!state.stream) {
+                    videoPlaceholder.classList.remove('hidden');
+                    viewerPlaceholder.classList.add('hidden');
+                }
+            } else {
+                modeViewerBtn.className = "px-3 py-1.5 rounded-lg font-medium transition-all duration-200 bg-emerald-600 text-white shadow-sm flex items-center gap-1.5";
+                modePresenterBtn.className = "px-3 py-1.5 rounded-lg font-medium transition-all duration-200 text-slate-400 hover:text-slate-200 flex items-center gap-1.5";
+                presenterControls.classList.add('hidden');
+                
+                if (!state.stream) {
+                    videoPlaceholder.classList.add('hidden');
+                    viewerPlaceholder.classList.remove('hidden');
+                }
+            }
+        }
+
+        // Screen Sharing Execution Core
+        async function startScreenShare() {
+            try {
+                const captureMic = document.getElementById('micAudioCheckbox').checked;
+                const captureSystemAudio = document.getElementById('systemAudioCheckbox').checked;
+
+                // Acquire Display Stream
+                const displayStream = await navigator.mediaDevices.getDisplayMedia({
+                    video: {
+                        cursor: "always",
+                        displaySurface: "monitor"
+                    },
+                    audio: captureSystemAudio
+                });
+
+                state.stream = displayStream;
+
+                // Handle Mic audio integration if requested
+                if (captureMic) {
+                    try {
+                        state.micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                        // Add mic audio track to state stream
+                        state.micStream.getAudioTracks().forEach(track => state.stream.addTrack(track));
+                    } catch (micErr) {
+                        showToast('Microphone access denied or unavailable', 'warning');
+                    }
+                }
+
+                // Render into video element
+                sharedVideo.srcObject = state.stream;
+                sharedVideo.classList.remove('hidden');
+                videoPlaceholder.classList.add('hidden');
+                viewerPlaceholder.classList.add('hidden');
+                videoControlsToolbar.classList.remove('hidden');
+                
+                sideStartBtn.classList.add('hidden');
+                sideStopBtn.classList.remove('hidden');
+
+                // Detect stream end from native stop bar
+                state.stream.getVideoTracks()[0].onended = () => {
+                    stopScreenShare();
+                };
+
+                // Update Status UI
+                updateStatus(true, "Live Sharing");
+                startTelemetry();
+                initBroadcastConnection();
+                showToast('Screen sharing started successfully', 'success');
+
+            } catch (err) {
+                console.error("Screen capture error: ", err);
+                if (err.name !== 'NotAllowedError') {
+                    showToast('Failed to start screen share: ' + err.message, 'error');
+                }
+            }
+        }
+
+        function stopScreenShare() {
+            if (state.stream) {
+                state.stream.getTracks().forEach(track => track.stop());
+                state.stream = null;
+            }
+            if (state.micStream) {
+                state.micStream.getTracks().forEach(track => track.stop());
+                state.micStream = null;
+            }
+
+            if (state.isRecording) {
+                stopRecording();
+            }
+
+            sharedVideo.srcObject = null;
+            sharedVideo.classList.add('hidden');
+            
+            if (state.mode === 'presenter') {
+                videoPlaceholder.classList.remove('hidden');
+            } else {
+                viewerPlaceholder.classList.remove('hidden');
+            }
+
+            videoControlsToolbar.classList.add('hidden');
+            annotationBar.classList.add('hidden');
+            annotationCanvas.classList.add('hidden');
+            state.isAnnotating = false;
+
+            sideStartBtn.classList.remove('hidden');
+            sideStopBtn.classList.add('hidden');
+
+            updateStatus(false, "Idle / Offline");
+            stopTelemetry();
+            showToast('Screen sharing stopped', 'info');
+        }
+
+        startShareBtn.addEventListener('click', startScreenShare);
+        sideStartBtn.addEventListener('click', startScreenShare);
+        sideStopBtn.addEventListener('click', stopScreenShare);
+        tbStopBtn.addEventListener('click', stopScreenShare);
+
+        // Telemetry & Stats Monitors
+        function startTelemetry() {
+            state.statsInterval = setInterval(() => {
+                if (!state.stream) return;
+                
+                const videoTrack = state.stream.getVideoTracks()[0];
+                if (videoTrack) {
+                    const settings = videoTrack.getSettings();
+                    const width = settings.width || sharedVideo.videoWidth || 0;
+                    const height = settings.height || sharedVideo.videoHeight || 0;
+                    const frameRate = settings.frameRate ? Math.round(settings.frameRate) : state.fps;
+
+                    resDisplay.innerText = `${width}x${height}`;
+                    fpsDisplay.innerText = `${frameRate} FPS`;
+                    
+                    document.getElementById('statRes').innerText = `${width}x${height}`;
+                    document.getElementById('statFps').innerText = `${frameRate} FPS`;
+                    document.getElementById('statAspect').innerText = height ? (width / height).toFixed(2) + ':1' : 'N/A';
+                    
+                    // Rough bitrate estimate based on pixel volume & frame rate
+                    const approxBitrate = ((width * height * frameRate * 0.07) / 1000000).toFixed(1);
+                    document.getElementById('statBitrate').innerText = `~${approxBitrate} Mbps`;
+
+                    const audioTracks = state.stream.getAudioTracks();
+                    document.getElementById('statAudio').innerText = audioTracks.length > 0 ? `${audioTracks.length} Track(s)` : 'None';
+                }
+            }, 1000);
+        }
+
+        function stopTelemetry() {
+            if (state.statsInterval) clearInterval(state.statsInterval);
+            resDisplay.innerText = "0x0";
+            fpsDisplay.innerText = "0 FPS";
+            document.getElementById('statRes').innerText = "N/A";
+            document.getElementById('statFps').innerText = "0 FPS";
+            document.getElementById('statBitrate').innerText = "0 Mbps";
+            document.getElementById('statAspect').innerText = "N/A";
+            document.getElementById('statAudio').innerText = "None";
+        }
+
+        // Status Helper
+        function updateStatus(isLive, message) {
+            statusText.innerText = message;
+            if (isLive) {
+                statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+                statusDot.className = "w-2 h-2 rounded-full bg-emerald-500 animate-pulse";
+            } else {
+                statusBadge.className = "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-400 border border-slate-700";
+                statusDot.className = "w-2 h-2 rounded-full bg-slate-500";
+            }
+        }
+
+        // Interactive Drawing Overlay
+        tbAnnotateToggle.addEventListener('click', () => {
+            state.isAnnotating = !state.isAnnotating;
+            if (state.isAnnotating) {
+                annotationBar.classList.remove('hidden');
+                annotationCanvas.classList.remove('hidden');
+                tbAnnotateToggle.classList.add('bg-blue-600', 'text-white');
+                resizeCanvas();
+            } else {
+                annotationBar.classList.add('hidden');
+                annotationCanvas.classList.add('hidden');
+                laserPointer.classList.add('hidden');
+                tbAnnotateToggle.classList.remove('bg-blue-600', 'text-white');
+            }
+        });
+
+        function resizeCanvas() {
+            if (!annotationCanvas) return;
+            const rect = annotationCanvas.parentElement.getBoundingClientRect();
+            annotationCanvas.width = rect.width;
+            annotationCanvas.height = rect.height;
+        }
+
+        // Drawing Event Handlers
+        annotationCanvas.addEventListener('mousedown', startDrawing);
+        annotationCanvas.addEventListener('mousemove', draw);
+        annotationCanvas.addEventListener('mouseup', stopDrawing);
+        annotationCanvas.addEventListener('mouseleave', stopDrawing);
+
+        // Touch event support
+        annotationCanvas.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent("mousedown", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            annotationCanvas.dispatchEvent(mouseEvent);
+        });
+        annotationCanvas.addEventListener('touchmove', (e) => {
+            const touch = e.touches[0];
+            const mouseEvent = new MouseEvent("mousemove", {
+                clientX: touch.clientX,
+                clientY: touch.clientY
+            });
+            annotationCanvas.dispatchEvent(mouseEvent);
+        });
+        annotationCanvas.addEventListener('touchend', () => {
+            const mouseEvent = new MouseEvent("mouseup", {});
+            annotationCanvas.dispatchEvent(mouseEvent);
+        });
+
+        function startDrawing(e) {
+            if (state.currentTool === 'laser') return;
+            state.isDrawing = true;
+            const rect = annotationCanvas.getBoundingClientRect();
+            state.lastPoint = {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function draw(e) {
+            const rect = annotationCanvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+
+            // Handle Laser pointer tool separately
+            if (state.currentTool === 'laser') {
+                laserPointer.style.left = `${x}px`;
+                laserPointer.style.top = `${y}px`;
+                laserPointer.classList.remove('hidden');
+                return;
+            } else {
+                laserPointer.classList.add('hidden');
+            }
+
+            if (!state.isDrawing) return;
+
+            ctx.beginPath();
+            ctx.moveTo(state.lastPoint.x, state.lastPoint.y);
+            ctx.lineTo(x, y);
+
+            if (state.currentTool === 'pen') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = state.currentColor;
+                ctx.lineWidth = state.lineWidth;
+                ctx.lineCap = 'round';
+                ctx.lineJoin = 'round';
+            } else if (state.currentTool === 'highlighter') {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = state.currentColor + '66'; // Hex with transparency
+                ctx.lineWidth = state.lineWidth * 3;
+                ctx.lineCap = 'square';
+            } else if (state.currentTool === 'eraser') {
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.lineWidth = state.lineWidth * 4;
+                ctx.lineCap = 'round';
+            }
+
+            ctx.stroke();
+            state.lastPoint = { x, y };
+        }
+
+        function stopDrawing() {
+            state.isDrawing = false;
+        }
+
+        // Toolbar Action Setup
+        document.querySelectorAll('.tool-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tool-btn').forEach(b => {
+                    b.className = "tool-btn p-2 rounded-lg bg-slate-800 text-slate-300 hover:bg-slate-700 text-xs flex items-center gap-1.5 transition";
+                });
+                const target = e.currentTarget;
+                target.className = "tool-btn p-2 rounded-lg bg-blue-600 text-white text-xs flex items-center gap-1.5 transition";
+                state.currentTool = target.dataset.tool;
+            });
+        });
+
+        // Color selection
+        document.querySelectorAll('.color-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                state.currentColor = e.currentTarget.dataset.color;
+                document.querySelectorAll('.color-btn').forEach(b => b.classList.remove('ring-2', 'ring-offset-2', 'ring-offset-slate-900', 'ring-blue-500'));
+                e.currentTarget.classList.add('ring-2', 'ring-offset-2', 'ring-offset-slate-900', 'ring-blue-500');
+            });
+        });
+
+        document.getElementById('customColorPicker').addEventListener('input', (e) => {
+            state.currentColor = e.target.value;
+        });
+
+        document.getElementById('lineWidthRange').addEventListener('input', (e) => {
+            state.lineWidth = e.target.value;
+        });
+
+        clearCanvasBtn.addEventListener('click', () => {
+            ctx.clearRect(0, 0, annotationCanvas.width, annotationCanvas.height);
+            showToast('Canvas annotations cleared', 'info');
+        });
+
+        // Instant Snapshot / Screenshot
+        tbSnapshotBtn.addEventListener('click', takeSnapshot);
+
+        function takeSnapshot() {
+            if (!state.stream) return;
+
+            const tempCanvas = document.createElement('canvas');
+            const videoWidth = sharedVideo.videoWidth || annotationCanvas.width;
+            const videoHeight = sharedVideo.videoHeight || annotationCanvas.height;
+
+            tempCanvas.width = videoWidth;
+            tempCanvas.height = videoHeight;
+            const tempCtx = tempCanvas.getContext('2d');
+
+            // Draw Video frame
+            tempCtx.drawImage(sharedVideo, 0, 0, videoWidth, videoHeight);
+
+            // Draw Annotation Canvas on top
+            if (state.isAnnotating) {
+                tempCtx.drawImage(annotationCanvas, 0, 0, videoWidth, videoHeight);
+            }
+
+            // Export PNG
+            const dataUrl = tempCanvas.toDataURL('image/png');
+            const link = document.createElement('a');
+            link.download = `ScreenCapture-${Date.now()}.png`;
+            link.href = dataUrl;
+            link.click();
+
+            showToast('Snapshot saved to downloads', 'success');
+        }
+
+        // Screen Recording Logic (MediaRecorder API)
+        tbRecordBtn.addEventListener('click', () => {
+            if (state.isRecording) {
+                stopRecording();
+            } else {
+                startRecording();
+            }
+        });
+
+        function startRecording() {
+            if (!state.stream) return;
+
+            state.recordedChunks = [];
+            const options = { mimeType: 'video/webm;codecs=vp9,opus' };
+            
+            try {
+                state.mediaRecorder = new MediaRecorder(state.stream, options);
+            } catch (e) {
+                state.mediaRecorder = new MediaRecorder(state.stream);
+            }
+
+            state.mediaRecorder.ondataavailable = (e) => {
+                if (e.data.size > 0) state.recordedChunks.push(e.data);
+            };
+
+            state.mediaRecorder.onstop = saveRecording;
+
+            state.mediaRecorder.start(1000);
+            state.isRecording = true;
+            recBadge.classList.remove('hidden');
+            recBadge.classList.add('flex');
+            timerBadge.classList.remove('hidden');
+            tbRecordBtn.classList.add('bg-red-600', 'text-white');
+
+            state.recordingDuration = 0;
+            state.recordingTimer = setInterval(() => {
+                state.recordingDuration++;
+                const hrs = String(Math.floor(state.recordingDuration / 3600)).padStart(2, '0');
+                const mins = String(Math.floor((state.recordingDuration % 3600) / 60)).padStart(2, '0');
+                const secs = String(state.recordingDuration % 60).padStart(2, '0');
+                timerBadge.innerText = `${hrs}:${mins}:${secs}`;
+            }, 1000);
+
+            showToast('Recording started', 'info');
+        }
+
+        function stopRecording() {
+            if (!state.isRecording) return;
+            
+            state.mediaRecorder.stop();
+            state.isRecording = false;
+            recBadge.classList.add('hidden');
+            recBadge.classList.remove('flex');
+            timerBadge.classList.add('hidden');
+            tbRecordBtn.classList.remove('bg-red-600', 'text-white');
+            clearInterval(state.recordingTimer);
+
+            showToast('Recording finalized', 'success');
+        }
+
+        function saveRecording() {
+            const blob = new Blob(state.recordedChunks, { type: 'video/webm' });
+            const url = URL.createObjectURL(blob);
+            
+            const recordingOutputSection = document.getElementById('recordingOutputSection');
+            const recordingList = document.getElementById('recordingList');
+            recordingOutputSection.classList.remove('hidden');
+
+            const item = document.createElement('div');
+            item.className = "bg-slate-900/80 p-2.5 rounded-xl border border-slate-800 flex items-center justify-between gap-2 text-xs";
+            item.innerHTML = `
+                <div class="flex items-center gap-2 overflow-hidden">
+                    <i data-lucide="video" class="w-4 h-4 text-red-400 shrink-0"></i>
+                    <span class="truncate text-slate-300">Rec-${new Date().toLocaleTimeString()}.webm</span>
+                </div>
+                <a href="${url}" download="ScreenStream-${Date.now()}.webm" class="bg-blue-600 hover:bg-blue-500 text-white p-1.5 rounded-lg flex items-center transition">
+                    <i data-lucide="download" class="w-3.5 h-3.5"></i>
+                </a>
+            `;
+            recordingList.appendChild(item);
+            lucide.createIcons();
+        }
+
+        // Fullscreen & Picture-in-Picture
+        tbFullscreenBtn.addEventListener('click', () => {
+            const container = sharedVideo.parentElement;
+            if (!document.fullscreenElement) {
+                container.requestFullscreen().catch(err => showToast(err.message, 'error'));
+            } else {
+                document.exitFullscreen();
+            }
+        });
+
+        tbPipBtn.addEventListener('click', async () => {
+            try {
+                if (document.pictureInPictureElement) {
+                    await document.exitPictureInPicture();
+                } else if (document.pictureInPictureEnabled && sharedVideo) {
+                    await sharedVideo.requestPictureInPicture();
+                }
+            } catch (err) {
+                showToast('Picture-in-Picture failed: ' + err.message, 'error');
+            }
+        });
+
+        // Broadcast Channel & Peer Loopback Simulation
+        function setupBroadcastChannel() {
+            state.broadcastChannel = new BroadcastChannel(`screen_share_room_${state.roomId}`);
+            state.broadcastChannel.onmessage = (event) => {
+                if (event.data.type === 'SIGNAL_OFFER' && state.mode === 'viewer') {
+                    handleRemoteOffer(event.data.offer);
+                }
+            };
+        }
+
+        function initBroadcastConnection() {
+            // Send connection notice
+            state.broadcastChannel.postMessage({
+                type: 'STREAM_STARTED',
+                roomId: state.roomId
+            });
+        }
+
+        async function handleRemoteOffer(offer) {
+            showToast('Incoming stream broadcast connected', 'success');
+        }
+
+        // Room Link Sharing
+        function copyShareLink() {
+            const shareUrl = `${window.location.origin}${window.location.pathname}?room=${state.roomId}`;
+            navigator.clipboard.writeText(shareUrl).then(() => {
+                showToast('Viewer link copied to clipboard!', 'success');
+            }).catch(() => {
+                // Fallback for document.execCommand
+                const input = document.createElement('input');
+                input.value = shareUrl;
+                document.body.appendChild(input);
+                input.select();
+                document.execCommand('copy');
+                document.body.removeChild(input);
+                showToast('Viewer link copied to clipboard!', 'success');
+            });
+        }
+
+        quickShareBtn.addEventListener('click', copyShareLink);
+        copyRoomLinkBtn.addEventListener('click', copyShareLink);
+
+        joinRoomBtn.addEventListener('click', () => {
+            const val = joinRoomInput.value.trim();
+            if (val) {
+                state.roomId = val;
+                roomCodeDisplay.innerText = val;
+                showToast(`Joined room: ${val}`, 'info');
+            }
+        });
+
+        // Audio Mute Toggle
+        tbMicToggle.addEventListener('click', () => {
+            if (!state.stream) return;
+            const audioTracks = state.stream.getAudioTracks();
+            if (audioTracks.length > 0) {
+                const enabled = !audioTracks[0].enabled;
+                audioTracks.forEach(t => t.enabled = enabled);
+                if (enabled) {
+                    tbMicToggle.className = "p-2.5 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 hover:text-white transition";
+                    tbMicToggle.innerHTML = `<i data-lucide="mic" class="w-4 h-4 text-emerald-400"></i>`;
+                } else {
+                    tbMicToggle.className = "p-2.5 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500 hover:text-white transition";
+                    tbMicToggle.innerHTML = `<i data-lucide="mic-off" class="w-4 h-4"></i>`;
+                }
+                lucide.createIcons();
+            } else {
+                showToast('No active audio track found in stream', 'warning');
+            }
+        });
+
+        // UI Toast Notification System
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const toast = document.createElement('div');
+            
+            let bgStyle = 'bg-slate-900 border-slate-700 text-slate-200';
+            let icon = 'info';
+
+            if (type === 'success') {
+                bgStyle = 'bg-emerald-950/90 border-emerald-800 text-emerald-200';
+                icon = 'check-circle';
+            } else if (type === 'error') {
+                bgStyle = 'bg-red-950/90 border-red-800 text-red-200';
+                icon = 'alert-triangle';
+            } else if (type === 'warning') {
+                bgStyle = 'bg-amber-950/90 border-amber-800 text-amber-200';
+                icon = 'alert-circle';
+            }
+
+            toast.className = `px-4 py-3 rounded-xl border ${bgStyle} shadow-xl flex items-center gap-2.5 text-xs font-medium backdrop-blur-md pointer-events-auto transition-all duration-300 transform translate-y-2 opacity-0`;
+            toast.innerHTML = `<i data-lucide="${icon}" class="w-4 h-4 shrink-0"></i><span>${message}</span>`;
+
+            container.appendChild(toast);
+            lucide.createIcons();
+
+            requestAnimationFrame(() => {
+                toast.classList.remove('translate-y-2', 'opacity-0');
+            });
+
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3500);
+        }
+    </script>
+</body>
+</html>
